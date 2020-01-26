@@ -113,7 +113,7 @@ def main():
 
     model = CustomMLP(input_dim, output_dim)
 
-    model.train(x_train, y_train, 12, 128, 0.1)
+    model.train(x_train, y_train, 25, 128, 0.1)
 
     print("Loss in test set: {}".format(model.loss(x_test, y_test)))
 
