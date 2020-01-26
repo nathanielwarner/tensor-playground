@@ -22,19 +22,22 @@ class CustomMLP(object):
     def predict(self, inputs):
         """
         Predict numbers given input images
-        :param inputs: in the form inputs[pixel][example]
-        :return: predictions in the form predicts[predicted_num_one_hot][example]
+        :param inputs: in the form inputs[example][pixeL_in_example]
+        :return: predictions in the form predicts[example][predicted_num_one_hot]
         """
-        first_hidden_layer = tf.nn.leaky_relu(tf.matmul(self._params["W0"], inputs) + self._params["b0"])
-        second_hidden_layer = tf.nn.leaky_relu(tf.matmul(self._params["W1"], first_hidden_layer) + self._params["b1"])
-        predicts = tf.nn.softmax(tf.matmul(self._params["W2"], second_hidden_layer) + self._params["b2"], axis=0)
+        first_hidden_layer = tf.nn.leaky_relu(tf.matmul(self._params["W0"], inputs, transpose_b=True)
+                                              + self._params["b0"])
+        second_hidden_layer = tf.nn.leaky_relu(tf.matmul(self._params["W1"], first_hidden_layer)
+                                               + self._params["b1"])
+        predicts = tf.nn.softmax(tf.transpose(tf.matmul(self._params["W2"], second_hidden_layer)
+                                              + self._params["b2"]))
         return predicts
 
     def loss(self, inputs, targets):
         """
         Given a set of inputs with corresponding true outputs ("targets"), calculate the model's current loss
         """
-        return tf.reduce_mean(tf.losses.categorical_crossentropy(tf.transpose(targets), tf.transpose(self.predict(inputs))))
+        return tf.reduce_mean(tf.losses.categorical_crossentropy(targets, self.predict(inputs)))
 
     def _training_step(self, inputs, targets, learning_rate):
         # Calculate the current model loss, using tf.GradientTape() to watch the model parameters
@@ -42,7 +45,9 @@ class CustomMLP(object):
             current_loss = self.loss(inputs, targets)
 
         # Use the gradient tape's gradient() function to find gradients
-        dW0, db0, dW1, db1, dW2, db2 = t.gradient(current_loss, [self._params[param] for param in self._params])
+        dW0, db0, dW1, db1, dW2, db2 = t.gradient(current_loss, [self._params["W0"], self._params["b0"],
+                                                                 self._params["W1"], self._params["b1"],
+                                                                 self._params["W2"], self._params["b2"]])
 
         # Update model parameters based on calculated gradients
         self._params["W0"].assign_sub(learning_rate * dW0)
@@ -55,17 +60,17 @@ class CustomMLP(object):
     def train(self, inputs, targets, num_epochs, batch_size, learning_rate):
         """
         Train the model!
-        :param inputs: in the form inputs[pixel][example]
-        :param targets: in the form targets[true_number_one_hot][example]
+        :param inputs: the training dataset inputs, in the form inputs[example][pixel]
+        :param targets: the training dataset targets, in the form targets[example][true_number_one_hot]
         :param num_epochs: the number of times to iterate over the entire dataset
         :param batch_size: the number of examples to have in each training batch
         :param learning_rate:
         :return:
         """
         for epoch_num in range(1, num_epochs + 1):
-            for batch_num in range(int(inputs.shape[1] / batch_size)):
-                inputs_batch = inputs[:, batch_num * batch_size: batch_num * batch_size + batch_size]
-                targets_batch = targets[:, batch_num * batch_size: batch_num * batch_size + batch_size]
+            for batch_num in range(int(inputs.shape[0] / batch_size)):
+                inputs_batch = inputs[batch_num * batch_size: batch_num * batch_size + batch_size]
+                targets_batch = targets[batch_num * batch_size: batch_num * batch_size + batch_size]
                 self._training_step(inputs_batch, targets_batch, learning_rate)
             print("Epoch {} of {} completed, loss = {}".format(epoch_num, num_epochs, self.loss(inputs, targets)))
 
@@ -78,6 +83,7 @@ def main():
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
     # Get a random sample image from the test set for later demonstration
+    # (We do this now because we're going to flatten the inputs, which the image library can't handle)
     sample_index = random.randrange(x_test.shape[0])
     plt.imshow(x_test[sample_index], cmap='Greys')
 
@@ -107,22 +113,16 @@ def main():
 
     model = CustomMLP(input_dim, output_dim)
 
-    # Because of how matrix multiplication works, everything in TensorFlow land is transposed...
-    x_train = tf.transpose(x_train)
-    y_train = tf.transpose(y_train)
-    x_test = tf.transpose(x_test)
-    y_test = tf.transpose(y_test)
-
     model.train(x_train, y_train, 12, 128, 0.1)
 
     print("Loss in test set: {}".format(model.loss(x_test, y_test)))
 
-    print("Displaying sample image")
+    print("Displaying sample image from test set")
     plt.show()
 
     print("The neural network thinks the sample image is a {}. It is actually a {}."
-          .format(tf.argmax(tf.transpose(model.predict(x_test[:, sample_index: sample_index + 1]))[0]),
-                  tf.argmax(y_test[:, sample_index])))
+          .format(tf.argmax(model.predict([x_test[sample_index]])[0]),
+                  tf.argmax(y_test[sample_index])))
 
 
 if __name__ == "__main__":
