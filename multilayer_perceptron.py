@@ -11,13 +11,12 @@ class CustomMLP(object):
         Biases are initialized to 0
         As in the the 3Blue1Brown video, there are two hidden layers, each with 16 nodes
         """
-        self._params = dict()
-        self._params["W0"] = tf.Variable(tf.random.normal((16, input_dim)))
-        self._params["b0"] = tf.Variable(tf.zeros((16, 1)))
-        self._params["W1"] = tf.Variable(tf.random.normal((16, 16)))
-        self._params["b1"] = tf.Variable(tf.zeros((16, 1)))
-        self._params["W2"] = tf.Variable(tf.random.normal((output_dim, 16)))
-        self._params["b2"] = tf.Variable(tf.zeros((output_dim, 1)))
+        self._params = {"W0": tf.Variable(tf.random.normal((16, input_dim))),
+                        "b0": tf.Variable(tf.zeros((16, 1))),
+                        "W1": tf.Variable(tf.random.normal((16, 16))),
+                        "b1": tf.Variable(tf.zeros((16, 1))),
+                        "W2": tf.Variable(tf.random.normal((output_dim, 16))),
+                        "b2": tf.Variable(tf.zeros((output_dim, 1)))}
 
     def predict(self, inputs):
         """
