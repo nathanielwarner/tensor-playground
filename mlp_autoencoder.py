@@ -7,14 +7,17 @@ class MLPAutoEncoder(object):
     def __init__(self, input_x_dim, input_y_dim, code_dim):
         self._input_x_dim = input_x_dim
         self._input_y_dim = input_y_dim
+        self._code_dim = code_dim
+
+        code_dim_2 = self._code_dim ** 2
         input_dim = self._input_x_dim * self._input_y_dim
-        hidden_dim = int((input_dim + code_dim) / 2)
+        hidden_dim = int((input_dim + code_dim_2) / 2)
         self._params = {
             "enc_W0": tf.Variable(tf.random.normal((hidden_dim, input_dim))),
             "enc_b0": tf.Variable(tf.zeros((hidden_dim, 1))),
-            "enc_W1": tf.Variable(tf.random.normal((code_dim, hidden_dim))),
-            "enc_b1": tf.Variable(tf.zeros((code_dim, 1))),
-            "dec_W0": tf.Variable(tf.random.normal((hidden_dim, code_dim))),
+            "enc_W1": tf.Variable(tf.random.normal((code_dim_2, hidden_dim))),
+            "enc_b1": tf.Variable(tf.zeros((code_dim_2, 1))),
+            "dec_W0": tf.Variable(tf.random.normal((hidden_dim, code_dim_2))),
             "dec_b0": tf.Variable(tf.zeros((hidden_dim, 1))),
             "dec_W1": tf.Variable(tf.random.normal((input_dim, hidden_dim))),
             "dec_b1": tf.Variable(tf.zeros((input_dim, 1))),
@@ -37,9 +40,14 @@ class MLPAutoEncoder(object):
         return reshaped_outputs
 
     def loss(self, inputs):
+        inputs_non_sparsity = tf.reduce_mean(tf.reduce_sum(inputs, axis=1))
         encoded = self.encode(inputs)
+        #non_sparsity_penalty = tf.tanh(tf.reduce_mean(tf.reduce_sum(encoded, axis=1)) / self._code_dim - 1)
         decoded = self.decode(encoded)
-        return tf.reduce_mean(tf.losses.mean_squared_error(inputs, decoded))
+        mean_square_error = tf.reduce_mean(tf.losses.mean_squared_error(inputs, decoded))
+        outputs_non_sparsity = tf.reduce_mean(tf.reduce_sum(decoded, axis=1))
+        non_sparsity_penalty = tf.tanh((inputs_non_sparsity - outputs_non_sparsity) ** 2)
+        return (mean_square_error + non_sparsity_penalty) / 2
 
     def _training_step(self, inputs, learning_rate):
         with tf.GradientTape() as t:
@@ -75,7 +83,7 @@ def main():
     print("\nInput dimension: {}x{}\n".format(input_x_dim, input_y_dim))
 
     hidden_code_dim = 16
-    model = MLPAutoEncoder(input_x_dim, input_y_dim, hidden_code_dim ** 2)
+    model = MLPAutoEncoder(input_x_dim, input_y_dim, hidden_code_dim)
     model.train(x_train, 50, 128, 0.1)
 
     plt.title("Input Image")
