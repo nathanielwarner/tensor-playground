@@ -40,14 +40,10 @@ class MLPAutoEncoder(object):
         return reshaped_outputs
 
     def loss(self, inputs):
-        inputs_non_sparsity = tf.reduce_mean(tf.reduce_sum(inputs, axis=1))
         encoded = self.encode(inputs)
-        #non_sparsity_penalty = tf.tanh(tf.reduce_mean(tf.reduce_sum(encoded, axis=1)) / self._code_dim - 1)
         decoded = self.decode(encoded)
         mean_square_error = tf.reduce_mean(tf.losses.mean_squared_error(inputs, decoded))
-        outputs_non_sparsity = tf.reduce_mean(tf.reduce_sum(decoded, axis=1))
-        non_sparsity_penalty = tf.tanh((inputs_non_sparsity - outputs_non_sparsity) ** 2)
-        return (mean_square_error + non_sparsity_penalty) / 2
+        return mean_square_error
 
     def _training_step(self, inputs, learning_rate):
         with tf.GradientTape() as t:
@@ -56,12 +52,18 @@ class MLPAutoEncoder(object):
         for param in self._params.keys():
             self._params[param].assign_sub(learning_rate * grads[param])
 
-    def train(self, inputs, num_epochs, batch_size, learning_rate):
+    def train(self, inputs, val_inputs, num_epochs, batch_size, learning_rate):
         for epoch_num in range(1, num_epochs + 1):
             for batch_num in range(int(inputs.shape[0] / batch_size)):
                 inputs_batch = inputs[batch_num * batch_size: batch_num * batch_size + batch_size]
                 self._training_step(inputs_batch, learning_rate)
-            print("Epoch {} of {} completed, loss = {}".format(epoch_num, num_epochs, self.loss(inputs)))
+            train_loss = self.loss(inputs)
+            val_loss = self.loss(val_inputs)
+            print("Epoch {} of {} completed, training loss = {}, validation loss = {}".format(
+                epoch_num, num_epochs, train_loss, val_loss))
+            if val_loss - train_loss > train_loss / 32:
+                print("Stopped because validation loss significantly exceeds training loss")
+                break
 
 
 def main():
@@ -84,7 +86,7 @@ def main():
 
     hidden_code_dim = 16
     model = MLPAutoEncoder(input_x_dim, input_y_dim, hidden_code_dim)
-    model.train(x_train, 50, 128, 0.1)
+    model.train(x_train, x_test, 1000, 128, 0.1)
 
     plt.title("Input Image")
     test_case = x_test[random.randrange(x_test.shape[0])]
