@@ -5,8 +5,15 @@ import random
 
 class MLPAutoEncoder(object):
     def __init__(self, input_dim, code_dim):
-        hidden_1_dim = 512
-        hidden_2_dim = 128
+        """
+        Initialize model parameters based on input and code dimensions
+        The code dim should be much smaller than the input dim to demonstrate the model's encoding abilities
+        The encoder has two hidden layers, and so does the decoder
+        These hidden layers go down in size as you get to the hidden state
+        """
+        assert code_dim < input_dim, "Are you trying to make me learn the identity function or something?"
+        hidden_1_dim = int(input_dim - (input_dim - code_dim) / 4)
+        hidden_2_dim = int(input_dim - 3 * (input_dim - code_dim) / 4)
         self._params = {
             "enc_W0": tf.Variable(tf.random.normal((hidden_1_dim, input_dim), mean=0.0, stddev=0.05)),
             "enc_b0": tf.Variable(tf.zeros((hidden_1_dim, 1))),
@@ -50,7 +57,7 @@ class MLPAutoEncoder(object):
         with tf.GradientTape() as t:
             current_loss = self.loss(inputs)
         grads = t.gradient(current_loss, self._params)
-        optimizer.apply_gradients(zip(grads.values(), self._params.values()))
+        optimizer.apply_gradients((grads[key], self._params[key]) for key in grads.keys())
 
     def train(self, inputs, val_inputs, num_epochs, batch_size, optimizer):
         for epoch_num in range(1, num_epochs + 1):
@@ -71,7 +78,7 @@ def main():
 
     # Load the dataset, like last time
     # This time we're not gonna use the y data (because we're making an autoencoder not a classifier)
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+    (x_train, _), (x_test, _) = tf.keras.datasets.mnist.load_data()
 
     x_train = x_train.astype('float32') / 255.0
     x_test = x_test.astype('float32') / 255.0
@@ -88,6 +95,7 @@ def main():
     x_train = tf.reshape(x_train, (len(x_train), input_dim))
     x_test = tf.reshape(x_test, (len(x_test), input_dim))
 
+    # We're gonna make our hidden code be only 16 in length (compared to 784 in the input!)
     hidden_code_dim = 16
     model = MLPAutoEncoder(input_dim, hidden_code_dim)
     model.train(x_train, x_test, 64, 1024, tf.keras.optimizers.Adam())
@@ -102,6 +110,8 @@ def main():
         plt.subplot(1, 3, 2)
         plt.title("Hidden Representation")
         encoded = model.encode([test_case])
+        # The reshape command makes the 16-long hidden code by 4x4
+        # so we can see it alongside the input and output
         encoded_img = tf.reshape(tf.nn.sigmoid(encoded), (1, 4, 4))[0] * 255.0
         plt.imshow(encoded_img, cmap='Greys')
 
